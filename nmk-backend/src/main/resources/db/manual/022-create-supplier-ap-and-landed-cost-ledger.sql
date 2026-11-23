@@ -1,0 +1,95 @@
+-- Supplier accounts payable and landed-cost allocation ledger.
+-- Manual additive migration: inspect/backup first; do not apply to a client DB without approval.
+
+CREATE TABLE supplier_bills (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    supplier_id BIGINT NOT NULL,
+    purchase_order_id BIGINT NULL,
+    invoice_number VARCHAR(100) NOT NULL,
+    invoice_date DATE NOT NULL,
+    due_date DATE NULL,
+    amount DECIMAL(14,2) NOT NULL,
+    paid_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    credited_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    bill_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'POSTED',
+    created_by_username VARCHAR(100) NOT NULL,
+    idempotency_key VARCHAR(100) NOT NULL,
+    request_fingerprint CHAR(64) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_supplier_bill_invoice UNIQUE (supplier_id, invoice_number),
+    CONSTRAINT uk_supplier_bill_idempotency UNIQUE (idempotency_key),
+    CONSTRAINT fk_supplier_bill_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    CONSTRAINT fk_supplier_bill_purchase_order FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
+    CONSTRAINT chk_supplier_bill_amount CHECK (amount > 0),
+    CONSTRAINT chk_supplier_bill_type CHECK (bill_type IN ('GOODS', 'LANDED_COST', 'OTHER')),
+    CONSTRAINT chk_supplier_bill_status CHECK (status IN ('POSTED', 'VOID')),
+    INDEX idx_supplier_bills_supplier_due (supplier_id, due_date, status),
+    INDEX idx_supplier_bills_po (purchase_order_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE supplier_payments (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    supplier_bill_id BIGINT NOT NULL,
+    supplier_id BIGINT NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,
+    amount DECIMAL(14,2) NOT NULL,
+    reference VARCHAR(160) NULL,
+    shift_id BIGINT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
+    created_by_username VARCHAR(100) NOT NULL,
+    idempotency_key VARCHAR(100) NOT NULL,
+    request_fingerprint CHAR(64) NOT NULL,
+    paid_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_supplier_payment_idempotency UNIQUE (idempotency_key),
+    CONSTRAINT fk_supplier_payment_bill FOREIGN KEY (supplier_bill_id) REFERENCES supplier_bills(id),
+    CONSTRAINT fk_supplier_payment_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    CONSTRAINT fk_supplier_payment_shift FOREIGN KEY (shift_id) REFERENCES pos_shifts(id),
+    CONSTRAINT chk_supplier_payment_amount CHECK (amount > 0),
+    CONSTRAINT chk_supplier_payment_method CHECK (payment_method IN ('CASH', 'BANK', 'UPI', 'OTHER')),
+    CONSTRAINT chk_supplier_payment_status CHECK (status IN ('CONFIRMED')),
+    INDEX idx_supplier_payments_bill_paid (supplier_bill_id, paid_at),
+    INDEX idx_supplier_payments_supplier_paid (supplier_id, paid_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE supplier_bill_landed_cost_allocations (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    supplier_bill_id BIGINT NOT NULL,
+    goods_receipt_item_id BIGINT NOT NULL,
+    base_goods_value DECIMAL(14,2) NOT NULL,
+    allocated_amount DECIMAL(14,2) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_supplier_bill_receipt_item UNIQUE (supplier_bill_id, goods_receipt_item_id),
+    CONSTRAINT fk_landed_cost_bill FOREIGN KEY (supplier_bill_id) REFERENCES supplier_bills(id),
+    CONSTRAINT fk_landed_cost_receipt_item FOREIGN KEY (goods_receipt_item_id) REFERENCES goods_receipt_items(id),
+    CONSTRAINT chk_landed_cost_base CHECK (base_goods_value > 0),
+    CONSTRAINT chk_landed_cost_amount CHECK (allocated_amount >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE supplier_bill_credit_notes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    supplier_bill_id BIGINT NOT NULL,
+    supplier_id BIGINT NOT NULL,
+    supplier_return_id BIGINT NULL,
+    credit_note_number VARCHAR(100) NOT NULL,
+    issue_date DATE NOT NULL,
+    amount DECIMAL(14,2) NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
+    created_by_username VARCHAR(100) NOT NULL,
+    idempotency_key VARCHAR(100) NOT NULL,
+    request_fingerprint CHAR(64) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_supplier_credit_note_number UNIQUE (supplier_id, credit_note_number),
+    CONSTRAINT uk_supplier_credit_note_idempotency UNIQUE (idempotency_key),
+    CONSTRAINT fk_supplier_credit_note_bill FOREIGN KEY (supplier_bill_id) REFERENCES supplier_bills(id),
+    CONSTRAINT fk_supplier_credit_note_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    CONSTRAINT fk_supplier_credit_note_return FOREIGN KEY (supplier_return_id) REFERENCES supplier_returns(id),
+    CONSTRAINT chk_supplier_credit_note_amount CHECK (amount > 0),
+    CONSTRAINT chk_supplier_credit_note_status CHECK (status IN ('CONFIRMED')),
+    INDEX idx_supplier_credit_notes_bill_date (supplier_bill_id, issue_date)
+) ENGINE=InnoDB;

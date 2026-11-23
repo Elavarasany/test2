@@ -1,0 +1,45 @@
+# Maven build output
+target/
+**/target/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local database backup
+nmk_staging_restore-before-*.sql
+
+# Local test database credentials
+**/application-mysql-test.properties
+
+# Temporary source backups
+*.pos-backup
+
+# Database dumps and backups
+*.sql
+*.sql.gz
+
+# Temporary files
+*.tmp
+*.bak
+# Project migration scripts
+!nmk-backend/src/main/resources/db/manual/*.sql
+!nmk-backend/src/main/resources/db/manual/001-legacy-order-and-product-columns.sql
+!nmk-backend/src/main/resources/db/manual/002-create-variant-inventory-tables.sql
+!nmk-backend/src/main/resources/db/manual/003-create-main-store-location.sql
+!nmk-backend/src/main/resources/db/manual/004-staging-schema-reconciliation.sql

@@ -1,0 +1,84 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - feature/pos-operations-v1
+      - feature/pos-completion-v1
+  pull_request:
+    paths:
+      - "nmk-backend/**"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Maven tests (Java 27)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nmk-backend
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 27
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "27"
+          cache: maven
+          cache-dependency-path: nmk-backend/pom.xml
+
+      - name: Make Maven wrapper executable
+        run: chmod +x ./mvnw
+
+      - name: Run tests and package
+        run: ./mvnw --batch-mode --no-transfer-progress -Pci clean verify
+
+
+  mysql-integration:
+    name: MySQL 8.4 integration and concurrency tests
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: nmk_pos_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    defaults:
+      run:
+        working-directory: nmk-backend
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 27
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "27"
+          cache: maven
+          cache-dependency-path: nmk-backend/pom.xml
+
+      - name: Make Maven wrapper executable
+        run: chmod +x ./mvnw
+
+      - name: Run MySQL integration and concurrency tests
+        run: ./mvnw --batch-mode --no-transfer-progress "-Dtest=*MySql*Test" test
