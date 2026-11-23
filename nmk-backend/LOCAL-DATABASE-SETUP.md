@@ -2,7 +2,7 @@
 
 ## Automatic table creation
 
-The backend defaults to the `local` Spring profile when no profile is explicitly selected.
+The backend does **not** default to the `local` profile. Select `local` explicitly for development. With no active profile, the base configuration uses Hibernate `validate`, not automatic schema updates.
 
 The local profile uses Hibernate `ddl-auto=update`. When the backend starts, Hibernate reads the JPA `@Entity` mappings and:
 
@@ -25,7 +25,8 @@ This includes the POS entities (sales, sale items, payments, registers, shifts, 
    ```
 
 3. Configure the local environment variables required by `application.properties` (database password, JWT secret and payment test credentials). Do not commit real secrets.
-4. Start the backend normally. No manual SQL file needs to be run for Hibernate-managed entity tables.
+4. Set `SPRING_PROFILES_ACTIVE=local` in your IDE run configuration or process environment.
+5. Start the backend. No manual SQL file needs to be run for Hibernate-managed entity tables.
 
 ## Important limits
 
